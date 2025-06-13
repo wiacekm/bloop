@@ -140,8 +140,17 @@ trait BspClientTest {
     }
 
     val configPath = RelativePath(configDirectory.underlying.getFileName)
-    val bspServer = BspServer
-      .run(cmd, state, configPath, None, None, ExecutionContext.scheduler, ioScheduler)
+    val bspServer = TestUtil.bspServer
+      .run(
+        TestUtil.interpreter,
+        cmd,
+        state,
+        configPath,
+        None,
+        None,
+        ExecutionContext.scheduler,
+        ioScheduler
+      )
       .runAsync(ioScheduler)
     val bspClientExecution = establishClientConnection(cmd).flatMap { socket =>
       val in = socket.getInputStream

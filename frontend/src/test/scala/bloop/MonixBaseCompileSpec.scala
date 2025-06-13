@@ -37,7 +37,7 @@ abstract class MonixBaseCompileSpec extends bloop.testing.MonixBaseSuite {
       def runCompileAsync(
           activeSessions: Ref[Task, Map[Path, List[CliSession]]]
       ): Task[ExitStatus] =
-        Cli.run(compileAction, NoPool, activeSessions)
+        Cli.run(TestUtil.interpreter, compileAction, NoPool, activeSessions)
       for {
         activeSessions <- Ref.of[Task, Map[Path, List[CliSession]]](Map.empty)
         _ <- Task.parSequenceUnordered(

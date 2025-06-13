@@ -14,10 +14,8 @@ import scala.concurrent.duration.FiniteDuration
 import scala.concurrent.duration.TimeUnit
 import scala.tools.nsc.Properties
 import scala.util.control.NonFatal
-import bloop.CompilerCache
-import bloop.DependencyResolution
-import bloop.ScalaInstance
-import bloop.bsp.BloopRpcServices
+import bloop.{Compiler, CompilerCache, DependencyResolution, ScalaInstance}
+import bloop.bsp.{BloopRpcServices, BspServer}
 import bloop.cli.Commands
 import bloop.config.Config
 import bloop.config.Config.CompileOrder
@@ -51,11 +49,22 @@ import bloop.logging.RecordingLogger
 import _root_.bloop.task.Task
 import _root_.monix.eval.{Task => MonixTask}
 import _root_.monix.execution.Scheduler
+import bloop.engine.tasks.CompileTask
+import bloop.engine.tasks.compilation.CompileGraph
 import org.junit.Assert
 import sbt.internal.inc.BloopComponentCompiler
+import sbt.internal.inc.bloop.BloopZincCompiler
 import xsbti.ComponentProvider
 
 object TestUtil {
+
+  private val bloopZincCompiler = new BloopZincCompiler()
+  private val compiler = new Compiler(bloopZincCompiler)
+  val compileGraph = new CompileGraph(compiler)
+  val compileTask = new CompileTask(compiler, compileGraph)
+  val bspServer = new BspServer(compileTask)
+  val interpreter = new Interpreter(compileTask, bspServer)
+
   def projectDir(base: Path, name: String): Path = base.resolve(name)
   def sourcesDir(base: Path, name: String): Path = projectDir(base, name).resolve("src")
   def targetDir(base: Path, name: String): Path = projectDir(base.resolve("target"), name)
@@ -152,7 +161,7 @@ object TestUtil {
   }
 
   def interpreterTask(a: Action, state: State): Task[State] = {
-    Interpreter.execute(a, Task.now(state))
+    interpreter.execute(a, Task.now(state))
   }
 
   def blockOnTask[T](

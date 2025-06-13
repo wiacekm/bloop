@@ -45,7 +45,7 @@ import xsbti.compile.CompileAnalysis
 import xsbti.compile.MiniSetup
 import xsbti.compile.PreviousResult
 
-object CompileTask {
+class CompileTask(compiler: Compiler, compileGraph: CompileGraph) {
   private implicit val logContext: DebugFilter = DebugFilter.Compilation
   def compile[UseSiteLogger <: Logger](
       state: State,
@@ -180,7 +180,7 @@ object CompileTask {
             // Only when the task is finished, we kickstart the compilation
             def compile(inputs: CompileInputs) = {
               val firstResult =
-                Compiler.compile(inputs, isBestEffort, isBestEffortDep, firstCompilation = true)
+                compiler.compile(inputs, isBestEffort, isBestEffortDep, firstCompilation = true)
               firstResult.flatMap {
                 case result @ Compiler.Result.Failed(
                       _,
@@ -201,7 +201,7 @@ object CompileTask {
                     previousCompilerResult = result,
                     previousResult = emptyResult
                   )
-                  Compiler.compile(
+                  compiler.compile(
                     newInputs,
                     isBestEffort,
                     isBestEffortDep,
@@ -312,7 +312,7 @@ object CompileTask {
     }
 
     val client = state.client
-    CompileGraph.traverse(dag, client, store, bestEffortAllowed, setup(_), compile).flatMap {
+    compileGraph.traverse(dag, client, store, bestEffortAllowed, setup(_), compile).flatMap {
       pdag =>
         val partialResults = Dag.dfs(pdag, mode = Dag.PreOrder)
         val finalResults = partialResults.map(r => PartialCompileResult.toFinalResult(r))

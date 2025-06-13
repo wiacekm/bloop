@@ -9,7 +9,7 @@ import bloop.logging.{BspServerLogger, RecordingLogger}
 import bloop.reporter.Problem
 import bloop.util.{TestProject, TestUtil}
 import monix.eval.Task
-import monix.execution.{ExecutionModel, Scheduler}
+import monix.execution.Scheduler
 import monix.testing.utest.MonixTaskTest
 import utest.Tests
 import utest.asserts.Asserts

@@ -26,12 +26,15 @@ import bloop.io.AbsolutePath
 import bloop.logging.{BloopLogger, Logger, NoopLogger}
 import bloop.task.Task
 import bloop.engine.tasks.compilation.CompileGatekeeper
+import bloop.util.TestUtil
 import sbt.internal.inc.BloopComponentCompiler
+
 import scala.util.control.NonFatal
 
 object CommunityBuild
     extends CommunityBuild(
-      AbsolutePath(System.getProperty("user.home")).resolve(".buildpress")
+      AbsolutePath(System.getProperty("user.home")).resolve(".buildpress"),
+      TestUtil.interpreter
     ) {
   def exit(exitCode: Int): Unit = System.exit(exitCode)
   def main(args: Array[String]): Unit = {
@@ -49,7 +52,7 @@ object CommunityBuild
   }
 }
 
-abstract class CommunityBuild(val buildpressHomeDir: AbsolutePath) {
+abstract class CommunityBuild(val buildpressHomeDir: AbsolutePath, interpreter: Interpreter) {
   def exit(exitCode: Int): Unit
   val buildpressCacheDir: AbsolutePath = buildpressHomeDir.resolve("cache")
   val buildpressCacheFile: AbsolutePath =
@@ -205,7 +208,7 @@ abstract class CommunityBuild(val buildpressHomeDir: AbsolutePath) {
   }
 
   private def execute(a: Action, state: State, duration: Duration = Duration.Inf): State = {
-    val task = Interpreter.execute(a, Task.now(state))
+    val task = interpreter.execute(a, Task.now(state))
     val handle = task.runAsync(ExecutionContext.scheduler)
     try Await.result(handle, duration)
     catch {

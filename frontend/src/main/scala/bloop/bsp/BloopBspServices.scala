@@ -88,6 +88,8 @@ import bloop.data.Platform.Jvm
 import bloop.data.Platform.Native
 
 final class BloopBspServices(
+    interpreter: Interpreter,
+    compileTask: CompileTask,
     callSiteState: State,
     client: BloopLanguageClient,
     relativeConfigPath: RelativePath,
@@ -571,7 +573,7 @@ final class BloopBspServices(
         }
       }
 
-      CompileTask.compile(
+      compileTask.compile(
         state,
         dag,
         createReporter,
@@ -989,7 +991,7 @@ final class BloopBspServices(
           Left(new IllegalArgumentException(s"Unsupported data kind: $kind"))
         case None =>
           val cmd = Commands.Run(List(project.name))
-          Interpreter.getMainClass(state, project, cmd.main) match {
+          interpreter.getMainClass(state, project, cmd.main) match {
             case Right(name) =>
               Right(new bsp.ScalaMainClass(name, cmd.args, Nil, None))
             case Left(_) =>

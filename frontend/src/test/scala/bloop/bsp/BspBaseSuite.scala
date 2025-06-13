@@ -792,7 +792,8 @@ abstract class BspBaseSuite extends BaseSuite with BspClientTest {
     val computationScheduler = userComputationScheduler.getOrElse(ExecutionContext.scheduler)
     val ioScheduler = userIOScheduler.getOrElse(bspDefaultScheduler)
     val path = RelativePath(configDirectory.underlying.getFileName)
-    val bspServer = BspServer.run(
+    val bspServer = TestUtil.bspServer.run(
+      TestUtil.interpreter,
       cmd,
       state,
       path,

@@ -28,7 +28,7 @@ import xsbti.AnalysisCallback
 import xsbti.VirtualFile
 import xsbti.compile._
 
-object BloopZincCompiler {
+class BloopZincCompiler {
   import bloop.logging.DebugFilter
   private implicit val filter: DebugFilter.Compilation.type = DebugFilter.Compilation
 

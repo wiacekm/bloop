@@ -35,7 +35,7 @@ import bloop.task.Task
 import bloop.testing.LoggingEventHandler
 import bloop.testing.TestInternals
 
-object Interpreter {
+class Interpreter(compileTask: CompileTask, bspServer: BspServer) {
   // This is stack-safe because of Monix's trampolined execution
   def execute(action: Action, stateTask: Task[State]): Task[State] = {
     def execute(action: Action, stateTask: Task[State]): Task[State] = {
@@ -108,8 +108,8 @@ object Interpreter {
 
   private def runBsp(cmd: Commands.ValidatedBsp, state: State): Task[State] = {
     import ExecutionContext.{ioScheduler, scheduler}
-    BspServer
-      .run(cmd, state, RelativePath(".bloop"), None, None, scheduler, ioScheduler)
+    bspServer
+      .run(this, cmd, state, RelativePath(".bloop"), None, None, scheduler, ioScheduler)
       .executeOn(ioScheduler)
   }
 
@@ -164,13 +164,13 @@ object Interpreter {
       }
     }
 
-    val compileTask = state.flatMap { state =>
+    val compileTaskTask = state.flatMap { state =>
       val config = ReporterKind.toReporterConfig(cmd.reporter).copy(colors = !noColor)
       val dag = getProjectsDag(projects, state)
       val createReporter = (inputs: ReporterInputs[Logger]) =>
         new LogReporter(inputs.project, inputs.logger, inputs.cwd, config)
       import bloop.engine.tasks.compilation.CompileClientStore
-      CompileTask.compile(
+      compileTask.compile(
         state,
         dag,
         createReporter,
@@ -182,7 +182,7 @@ object Interpreter {
       )
     }
 
-    compileTask.map(_.mergeStatus(ExitStatus.Ok))
+    compileTaskTask.map(_.mergeStatus(ExitStatus.Ok))
   }
 
   private def compile(cmd: Commands.Compile, state: State): Task[State] = {

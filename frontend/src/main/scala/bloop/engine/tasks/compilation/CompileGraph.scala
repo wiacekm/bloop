@@ -33,13 +33,9 @@ import bloop.util.SystemProperties
 
 import xsbti.compile.PreviousResult
 
-object CompileGraph {
+class CompileGraph(compiler: Compiler) {
   import bloop.engine.tasks.compilation.CompileDefinitions._
-
-  case class Inputs(
-      bundle: SuccessfulCompileBundle,
-      dependentResults: Map[File, PreviousResult]
-  )
+  import CompileGraph._
 
   private def partialSuccess(
       bundle: SuccessfulCompileBundle,
@@ -148,13 +144,13 @@ object CompileGraph {
         // Don't use `bundle.lastSuccessful`, it's not the final input to `compile`
         val analysis = runningCompilation.usedLastSuccessful.previous.analysis().toOption
         val previousSuccessfulProblems =
-          Compiler.previousProblemsFromSuccessfulCompilation(analysis)
+          compiler.previousProblemsFromSuccessfulCompilation(analysis)
         val wasPreviousSuccessful = bundle.latestResult match {
           case Compiler.Result.Ok(_) => true
           case _ => false
         }
         val previousProblems =
-          Compiler.previousProblemsFromResult(bundle.latestResult, previousSuccessfulProblems)
+          compiler.previousProblemsFromResult(bundle.latestResult, previousSuccessfulProblems)
 
         val clientClassesObserver = client.getClassesObserverFor(bundle.project)
 
@@ -489,4 +485,12 @@ object CompileGraph {
     err.printStackTrace(pw)
     sw.toString
   }
+}
+
+object CompileGraph {
+
+  case class Inputs(
+      bundle: SuccessfulCompileBundle,
+      dependentResults: Map[File, PreviousResult]
+  )
 }

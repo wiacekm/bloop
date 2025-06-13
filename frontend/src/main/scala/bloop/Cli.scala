@@ -1,5 +1,7 @@
 package bloop
 
+import bloop.bsp.BspServer
+
 import java.io.InputStream
 import java.io.PrintStream
 import java.nio.file.Path
@@ -11,6 +13,8 @@ import bloop.cli.ExitStatus
 import bloop.cli.Validate
 import bloop.data.ClientInfo.CliClientInfo
 import bloop.engine._
+import bloop.engine.tasks.CompileTask
+import bloop.engine.tasks.compilation.CompileGraph
 import bloop.io.AbsolutePath
 import bloop.io.Paths
 import bloop.logging.BloopLogger
@@ -26,6 +30,7 @@ import cats.effect.concurrent.{Deferred, Ref}
 import com.martiansoftware.nailgun.NGContext
 import monix.execution.Scheduler
 import monix.execution.atomic.AtomicBoolean
+import sbt.internal.inc.bloop.BloopZincCompiler
 
 import scala.concurrent.Await
 import scala.concurrent.duration.Duration
@@ -33,12 +38,19 @@ import scala.concurrent.duration.Duration
 class Cli
 object Cli extends TaskApp {
 
+  private val bloopZincCompiler = new BloopZincCompiler()
+  private val compiler = new Compiler(bloopZincCompiler)
+  private val compileGraph = new CompileGraph(compiler)
+  private val compileTask = new CompileTask(compiler, compileGraph)
+  private val bspServer = new BspServer(compileTask)
+  private val interpreter = new Interpreter(compileTask, bspServer)
+
   implicit private val filter: DebugFilter.All.type = DebugFilter.All
   def run(args: List[String]): MonixTask[ExitCode] = {
     val action = parse(args.toArray, CommonOptions.default)
     for {
       activeCliSessions <- Ref.of[MonixTask, Map[Path, List[CliSession]]](Map.empty)
-      exitStatus <- run(action, NoPool, activeCliSessions)
+      exitStatus <- run(interpreter, action, NoPool, activeCliSessions)
     } yield ExitCode(exitStatus.code)
   }
 
@@ -64,7 +76,7 @@ object Cli extends TaskApp {
     )
 
     val cmd = parse(args, nailgunOptions)
-    val exitStatus = run(cmd, NoPool, cancel, activeCliSessions)
+    val exitStatus = run(interpreter, cmd, NoPool, cancel, activeCliSessions)
     exitStatus.map(_.code)
   }
 
@@ -99,7 +111,7 @@ object Cli extends TaskApp {
     val handle =
       Ref
         .of[MonixTask, Map[Path, List[CliSession]]](Map.empty)
-        .flatMap(run(cmd, NailgunPool(ngContext), _))
+        .flatMap(run(???, cmd, NailgunPool(ngContext), _))
         .onErrorHandle {
           case x: java.util.concurrent.ExecutionException =>
             // print stack trace of fatal errors thrown in asynchronous code, see https://stackoverflow.com/questions/17265022/what-is-a-boxed-error-in-scala
@@ -311,6 +323,7 @@ object Cli extends TaskApp {
   }
 
   def run(
+      interpreter: Interpreter,
       action: Action,
       pool: ClientPool,
       activeCliSessions: Ref[MonixTask, Map[Path, List[CliSession]]]
@@ -318,13 +331,14 @@ object Cli extends TaskApp {
     for {
       baseCancellation <- Deferred[MonixTask, Boolean]
       _ <- baseCancellation.complete(false)
-      result <- run(action, pool, baseCancellation, activeCliSessions)
+      result <- run(interpreter, action, pool, baseCancellation, activeCliSessions)
     } yield result
   }
 
   // Attempt to load JDI when we initialize the CLI class
   private val _ = JavaRuntime.loadJavaDebugInterface
   private def run(
+      interpreter: Interpreter,
       action: Action,
       pool: ClientPool,
       cancel: Deferred[MonixTask, Boolean],
@@ -366,6 +380,7 @@ object Cli extends TaskApp {
         MonixTask.now(exitStatus)
       case _ =>
         runWithState(
+          interpreter,
           action,
           pool,
           cancel,
@@ -379,6 +394,7 @@ object Cli extends TaskApp {
   }
 
   private def runWithState(
+      interpreter: Interpreter,
       action: Action,
       pool: ClientPool,
       cancel: Deferred[MonixTask, Boolean],
@@ -395,7 +411,7 @@ object Cli extends TaskApp {
     waitUntilEndOfWorld(cliOptions, pool, configDir, logger, cancel) {
       val taskToInterpret = { (cli: CliClientInfo) =>
         val state = State.loadActiveStateFor(configDirectory, cli, pool, cliOptions.common, logger)
-        val interpret = Interpreter.execute(action, state).map { newState =>
+        val interpret = interpreter.execute(action, state).map { newState =>
           action match {
             case Run(_: Commands.ValidatedBsp, _) =>
               () // Ignore, BSP services auto-update the build

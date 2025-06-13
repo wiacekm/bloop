@@ -5,21 +5,18 @@ import java.net.Socket
 import java.nio.file.NoSuchFileException
 import java.util.concurrent.ConcurrentHashMap
 import java.util.concurrent.TimeUnit
-
 import scala.concurrent.Promise
 import scala.util.control.NonFatal
-
 import bloop.cli.Commands
 import bloop.data.ClientInfo
-import bloop.engine.ExecutionContext
-import bloop.engine.State
+import bloop.engine.tasks.CompileTask
+import bloop.engine.{ExecutionContext, Interpreter, State}
 import bloop.io.AbsolutePath
 import bloop.io.RelativePath
 import bloop.io.ServerHandle
 import bloop.logging.BspClientLogger
 import bloop.logging.DebugFilter
 import bloop.task.Task
-
 import jsonrpc4s._
 import monix.execution.CancelablePromise
 import monix.execution.Scheduler
@@ -28,7 +25,7 @@ import monix.reactive.Observable
 import monix.reactive.OverflowStrategy
 import monix.reactive.subjects.BehaviorSubject
 
-object BspServer {
+class BspServer(compileTask: CompileTask) {
   private implicit val logContext: DebugFilter = DebugFilter.Bsp
 
   import Commands.ValidatedBsp
@@ -42,6 +39,7 @@ object BspServer {
     new ConcurrentHashMap[ClientInfo.BspClientInfo, AbsolutePath]()
 
   def run(
+      interpreter: Interpreter,
       cmd: ValidatedBsp,
       state: State,
       config: RelativePath,
@@ -71,6 +69,8 @@ object BspServer {
 
       val client = BloopLanguageClient.fromOutputStream(out, bspLogger)
       val provider = new BloopBspServices(
+        interpreter,
+        compileTask,
         state,
         client,
         config,

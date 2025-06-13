@@ -1009,7 +1009,7 @@ object DebugServerSpec extends DebugBspBaseSuite {
         Task.liftMonixTaskUncancellable {
           Ref
             .of[MonixTask, Map[Path, List[CliSession]]](Map.empty)
-            .flatMap(Cli.run(compileAction, NoPool, _))
+            .flatMap(Cli.run(TestUtil.interpreter, compileAction, NoPool, _))
         }.executeAsync
       }
 

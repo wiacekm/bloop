@@ -12,6 +12,7 @@ import scala.collection.mutable
 import scala.concurrent.Promise
 import scala.util.Try
 
+import bloop.Compiler.Result
 import bloop.Compiler.Result.Failed
 import bloop.Compiler.Result.Ok
 import bloop.io.AbsolutePath
@@ -173,7 +174,7 @@ object CompileOutPaths {
   }
 }
 
-object Compiler {
+class Compiler(bloopZincCompiler: BloopZincCompiler) {
   private implicit val filter: DebugFilter.Compilation.type = bloop.logging.DebugFilter.Compilation
   private val converter = PlainVirtualFileConverter.converter
   private final class BloopProgress(
@@ -196,57 +197,6 @@ object Compiler {
       }
 
       isNotCancelled
-    }
-  }
-
-  sealed trait Result
-  object Result {
-    final case object Empty extends Result with CacheHashCode
-    final case class Blocked(on: List[String]) extends Result with CacheHashCode
-    final case class GlobalError(problem: String, err: Option[Throwable])
-        extends Result
-        with CacheHashCode
-
-    final case class Success(
-        inputs: UniqueCompileInputs,
-        reporter: ZincReporter,
-        products: CompileProducts,
-        elapsed: Long,
-        backgroundTasks: CompileBackgroundTasks,
-        isNoOp: Boolean,
-        reportedFatalWarnings: Boolean
-    ) extends Result
-        with CacheHashCode
-
-    final case class Failed(
-        problems: List[ProblemPerPhase],
-        t: Option[Throwable],
-        elapsed: Long,
-        backgroundTasks: CompileBackgroundTasks,
-        bestEffortProducts: Option[BestEffortProducts]
-    ) extends Result
-        with CacheHashCode
-
-    final case class Cancelled(
-        problems: List[ProblemPerPhase],
-        elapsed: Long,
-        backgroundTasks: CompileBackgroundTasks
-    ) extends Result
-        with CacheHashCode
-
-    object Ok {
-      def unapply(result: Result): Option[Result] = result match {
-        case s @ (Success(_, _, _, _, _, _, _) | Empty) => Some(s)
-        case _ => None
-      }
-    }
-
-    object NotOk {
-      def unapply(result: Result): Option[Result] = result match {
-        case f @ (_: Failed | _: Cancelled | _: Blocked | _: GlobalError) =>
-          Some(f)
-        case _ => None
-      }
     }
   }
 
@@ -487,7 +437,7 @@ object Compiler {
       return Task { noopBestEffortResult.get }
     }
 
-    BloopZincCompiler
+    bloopZincCompiler
       .compile(
         inputs,
         reporter,
@@ -1267,4 +1217,58 @@ object Compiler {
       ()
     }.memoize
   }
+}
+
+object Compiler {
+  sealed trait Result
+  object Result {
+    final case object Empty extends Result with CacheHashCode
+    final case class Blocked(on: List[String]) extends Result with CacheHashCode
+    final case class GlobalError(problem: String, err: Option[Throwable])
+        extends Result
+        with CacheHashCode
+
+    final case class Success(
+        inputs: UniqueCompileInputs,
+        reporter: ZincReporter,
+        products: CompileProducts,
+        elapsed: Long,
+        backgroundTasks: CompileBackgroundTasks,
+        isNoOp: Boolean,
+        reportedFatalWarnings: Boolean
+    ) extends Result
+        with CacheHashCode
+
+    final case class Failed(
+        problems: List[ProblemPerPhase],
+        t: Option[Throwable],
+        elapsed: Long,
+        backgroundTasks: CompileBackgroundTasks,
+        bestEffortProducts: Option[BestEffortProducts]
+    ) extends Result
+        with CacheHashCode
+
+    final case class Cancelled(
+        problems: List[ProblemPerPhase],
+        elapsed: Long,
+        backgroundTasks: CompileBackgroundTasks
+    ) extends Result
+        with CacheHashCode
+
+    object Ok {
+      def unapply(result: Result): Option[Result] = result match {
+        case s @ (Success(_, _, _, _, _, _, _) | Empty) => Some(s)
+        case _ => None
+      }
+    }
+
+    object NotOk {
+      def unapply(result: Result): Option[Result] = result match {
+        case f @ (_: Failed | _: Cancelled | _: Blocked | _: GlobalError) =>
+          Some(f)
+        case _ => None
+      }
+    }
+  }
+
 }
